@@ -41,23 +41,33 @@ export class DocumentProcessor {
 
   private static async processCSV(file: File): Promise<DocumentChunk[]> {
     const text = await file.text();
-    // Simple CSV parser - in a real app, use PapaParse
-    const rows = text.split('\n');
+    const rows = text.split('\n').map(row => row.trim()).filter(row => row.length > 0);
     const headers = rows[0].split(',');
+    const dataRows = rows.slice(1);
     
-    const content = rows.slice(1)
-      .filter(row => row.trim())
-      .map((row, idx) => {
-        const values = row.split(',');
-        return headers.map((h, i) => `${h.trim()}: ${values[i]?.trim()}`).join(' | ');
-      })
-      .join('\n');
+    const chunks: DocumentChunk[] = [];
+    const ROWS_PER_CHUNK = 30; // Chunk by rows to keep context together
 
-    return this.chunkText(content, file.name);
+    for (let i = 0; i < dataRows.length; i += ROWS_PER_CHUNK) {
+      const chunkRows = dataRows.slice(i, i + ROWS_PER_CHUNK);
+      
+      const formattedContent = chunkRows.map(row => {
+        const values = row.split(',');
+        return headers.map((h, idx) => `${h.trim()}: ${values[idx]?.trim()}`).join(' | ');
+      }).join('\n');
+
+      chunks.push({
+        fileName: file.name,
+        content: `[CSV Header: ${headers.join(', ')}]\n${formattedContent}`,
+        index: chunks.length
+      });
+    }
+
+    return chunks;
   }
 
   private static chunkText(text: string, fileName: string): DocumentChunk[] {
-    const CHUNK_SIZE = 1000;
+    const CHUNK_SIZE = 4000; // Increased chunk size for better context
     const chunks: DocumentChunk[] = [];
     
     for (let i = 0; i < text.length; i += CHUNK_SIZE) {
@@ -71,16 +81,33 @@ export class DocumentProcessor {
     return chunks;
   }
 
-  static findRelevantChunks(query: string, chunks: DocumentChunk[], limit = 5): DocumentChunk[] {
-    // Simple keyword-based ranking for demo purposes
-    // In a production RAG, this would use semantic vector search
-    const queryTerms = query.toLowerCase().split(/\W+/);
+  static findRelevantChunks(query: string, chunks: DocumentChunk[], limit = 30): DocumentChunk[] {
+    // Simple keyword-based ranking
+    const queryTerms = query.toLowerCase().split(/\W+/).filter(t => t.length > 2);
     
+    // Detect aggregation/summary intent
+    const isAggregation = ['total', 'count', 'sum', 'average', 'summary', 'report', 'analyze', 'overview', 'all'].some(term => 
+      query.toLowerCase().includes(term)
+    );
+
+    // If aggregation is requested, try to return as much relevant data as possible
+    // or if the dataset is small enough, return everything
+    if (isAggregation && chunks.length < 50) {
+      console.log("Aggregation detected for small dataset. Returning all chunks.");
+      return chunks;
+    }
+
     const scoredChunks = chunks.map(chunk => {
       let score = 0;
       const contentLower = chunk.content.toLowerCase();
+      
+      // Exact phrase matching bonus
+      if (contentLower.includes(query.toLowerCase())) {
+        score += 10;
+      }
+
       queryTerms.forEach(term => {
-        if (term.length > 2 && contentLower.includes(term)) {
+        if (contentLower.includes(term)) {
           score += 1;
         }
       });
@@ -90,14 +117,15 @@ export class DocumentProcessor {
     const relevant = scoredChunks
       .filter(item => item.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
+      .slice(0, isAggregation ? limit * 2 : limit) // Return more chunks for aggregations
       .map(item => item.chunk);
 
     // Fallback: If no relevant chunks found by keywords, return the first few chunks
-    // This handles cases like "summarize this" or general questions where keywords don't match
     if (relevant.length === 0 && chunks.length > 0) {
       console.log("No keyword matches found. Falling back to first chunks.");
-      return chunks.slice(0, limit);
+      // If aggregation, return more fallback chunks
+      const fallbackLimit = isAggregation ? 20 : 5;
+      return chunks.slice(0, fallbackLimit);
     }
 
     return relevant;
