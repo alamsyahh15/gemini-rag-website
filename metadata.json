@@ -1,5 +1,5 @@
 
 {
-  "name": "Gemini RAG Explorer",
+  "name": "DocuMind Explorer",
   "description": "A high-performance Retrieval-Augmented Generation (RAG) chat application that allows users to upload PDF and CSV documents to create a searchable knowledge base powered by Gemini 3 Flash."
 }
