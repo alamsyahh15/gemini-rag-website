@@ -130,7 +130,7 @@ const App: React.FC = () => {
             <DatabaseIcon className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-bold text-zinc-100">Gemini RAG</h1>
+            <h1 className="font-bold text-zinc-100">DocuMind</h1>
             <p className="text-xs text-zinc-500">Document Brain</p>
           </div>
         </div>
