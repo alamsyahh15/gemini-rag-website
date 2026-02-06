@@ -327,7 +327,7 @@ const App: React.FC = () => {
             </button>
           </div>
           <p className="text-center text-[10px] text-zinc-600 mt-4 uppercase tracking-widest font-medium">
-            AI can make mistakes. Verify important information with source citations.
+            Copyright © 2026 Kelompok 13 – Universitas Siber Asia
           </p>
         </div>
       </main>
